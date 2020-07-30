@@ -89,6 +89,7 @@ type Conn struct {
 	eventChan      chan Event
 	eventCallback  EventCallback // may be nil
 	shouldQuit     chan struct{}
+	wg             sync.WaitGroup
 	pingInterval   time.Duration
 	recvTimeout    time.Duration
 	connectTimeout time.Duration
@@ -226,11 +227,13 @@ func Connect(servers []string, sessionTimeout time.Duration, options ...connOpti
 
 	conn.setTimeouts(int32(sessionTimeout / time.Millisecond))
 
+	conn.wg.Add(1)
 	go func() {
 		conn.loop()
 		conn.flushRequests(ErrClosing)
 		conn.invalidateWatches(ErrClosing)
 		close(conn.eventChan)
+		conn.wg.Done()
 	}()
 	return conn, ec, nil
 }
@@ -318,11 +321,8 @@ func WithMaxConnBufferSize(maxBufferSize int) connOption {
 
 func (c *Conn) Close() {
 	close(c.shouldQuit)
-
-	select {
-	case <-c.queueRequest(opClose, &closeRequest{}, &closeResponse{}, nil):
-	case <-time.After(time.Second):
-	}
+	<-c.queueRequest(opClose, &closeRequest{}, &closeResponse{}, nil)
+	c.wg.Wait()
 }
 
 // State returns the current state of the connection.
