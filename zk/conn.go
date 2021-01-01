@@ -971,31 +971,20 @@ func (c *Conn) queueRequest(opcode int32, req interface{}, res interface{}, recv
 		recvChan:   make(chan response, 1),
 		recvFunc:   recvFunc,
 	}
+	go func() { c.sendChan <- rq }()
 
-	switch opcode {
-	case opClose:
-		select {
-		case c.sendChan <- rq:
-		case <-time.After(c.connectTimeout * 2):
-			c.logger.Printf("gave up trying to send opClose to server")
-			rq.recvChan <- response{-1, ErrConnectionClosed}
-		}
-	default:
-		// otherwise avoid deadlocks for dumb clients who aren't aware that
-		// the ZK connection is closed yet.
-		select {
-		case <-c.shouldQuit:
-			rq.recvChan <- response{-1, ErrConnectionClosed}
-		case c.sendChan <- rq:
-			select {
-			case <-c.shouldQuit:
-				// maybe the caller gets this, maybe not- we tried.
-				rq.recvChan <- response{-1, ErrConnectionClosed}
-			default:
-			}
-		}
+	ret := response{}
+	select {
+	case ret = <-rq.recvChan:
+	case <-c.shouldQuit:
+		ret = response{-1, ErrConnectionClosed}
+	case <-time.After(c.connectTimeout * 2):
+		ret = response{-1, ErrConnectionClosed}
 	}
-	return rq.recvChan
+	retChan := make(chan response, 1)
+	retChan <- ret
+
+	return retChan
 }
 
 func (c *Conn) request(opcode int32, req interface{}, res interface{}, recvFunc func(*request, *responseHeader, error)) (int64, error) {
