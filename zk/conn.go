@@ -971,7 +971,7 @@ func (c *Conn) queueRequest(opcode int32, req interface{}, res interface{}, recv
 		recvChan:   make(chan response, 1),
 		recvFunc:   recvFunc,
 	}
-	go func() { c.sendChan <- rq }()
+	c.sendChan <- rq
 
 	ret := response{}
 	select {
