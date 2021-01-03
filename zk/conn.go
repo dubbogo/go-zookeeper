@@ -980,7 +980,7 @@ func (c *Conn) queueRequest(opcode int32, req interface{}, res interface{}, recv
 		ret = response{-1, ErrConnectionClosed}
 	case <-time.After(c.connectTimeout * 2):
 		c.logger.Printf("request of conn is timeout, xid:(%d)", rq.xid)
-		ret = response{-1, ErrConnectionClosed}
+		ret = response{-1, ErrResponse}
 	}
 	retChan := make(chan response, 1)
 	retChan <- ret
