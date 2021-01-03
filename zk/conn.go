@@ -971,7 +971,12 @@ func (c *Conn) queueRequest(opcode int32, req interface{}, res interface{}, recv
 		recvChan:   make(chan response, 1),
 		recvFunc:   recvFunc,
 	}
-	c.sendChan <- rq
+
+	select {
+	case c.sendChan <- rq:
+	case <-time.After(c.connectTimeout * 2):
+		c.logger.Printf("send request timeout, xid:(%d)", rq.xid)
+	}
 
 	ret := response{}
 	select {
