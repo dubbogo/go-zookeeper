@@ -185,7 +185,7 @@ func TestNotifyWatches(t *testing.T) {
 				select {
 				case e := <-res.ch:
 					if !res.notify || e.Path != res.path {
-						t.Fatal("unexpeted notification received")
+						t.Fatal("unexpected notification received")
 					}
 				default:
 					if res.notify {

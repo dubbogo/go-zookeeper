@@ -122,8 +122,8 @@ var (
 	ErrClosing                 = errors.New("zk: zookeeper is closing")
 	ErrNothing                 = errors.New("zk: no server responses to process")
 	ErrSessionMoved            = errors.New("zk: session moved to another server, so operation is ignored")
-	ErrReconfigDisabled        = errors.New("attempts to perform a reconfiguration operation when reconfiguration feature is disabled")
-	ErrBadArguments            = errors.New("invalid arguments")
+	ErrReconfigDisabled        = errors.New("zk: attempt to perform a reconfiguration operation when reconfiguration feature is disabled")
+	ErrBadArguments            = errors.New("zk: invalid arguments")
 	// ErrInvalidCallback         = errors.New("zk: invalid callback specified")
 
 	errCodeToError = map[ErrCode]error{

@@ -297,7 +297,7 @@ type reconfigRequest struct {
 	CurConfigId int64
 }
 
-type reconfigReponse getDataResponse
+type reconfigResponse getDataResponse
 
 func (r *multiRequest) Encode(buf []byte) (int, error) {
 	total := 0
