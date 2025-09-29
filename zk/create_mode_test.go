@@ -25,7 +25,7 @@ func TestParseCreateMode(t *testing.T) {
 			requireNoErrorf(t, err)
 			if cm.flag != tt.wantIntValue {
 				// change detector test for enum values.
-				t.Fatalf("createmode value of flag; want: %v, got: %v", cm.flag, tt.wantIntValue)
+				t.Fatalf("createmode value of flag; want: %v, got: %v", tt.wantIntValue, cm.flag)
 			}
 		})
 	}

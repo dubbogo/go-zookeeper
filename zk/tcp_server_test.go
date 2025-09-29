@@ -1,36 +1,30 @@
 package zk
 
 import (
-	"fmt"
-	"math/rand"
+	"errors"
 	"net"
 	"testing"
-	"time"
 )
 
 func WithListenServer(t *testing.T, test func(server string)) {
-	startPort := int(rand.Int31n(6000) + 10000)
-	server := fmt.Sprintf("localhost:%d", startPort)
-	l, err := net.Listen("tcp", server)
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Failed to start listen server: %v", err)
 	}
-	defer l.Close()
+	t.Cleanup(func() { _ = l.Close() })
+	server := l.Addr().String()
 
 	go func() {
 		conn, err := l.Accept()
 		if err != nil {
-			t.Logf("Failed to accept connection: %s", err.Error())
+			if !errors.Is(err, net.ErrClosed) {
+				t.Logf("Failed to accept connection: %v", err)
+			}
+			return
 		}
-
-		handleRequest(conn)
+		_ = conn.Close()
 	}()
 
 	test(server)
-}
-
-// Handles incoming requests.
-func handleRequest(conn net.Conn) {
-	time.Sleep(5 * time.Second)
-	conn.Close()
 }

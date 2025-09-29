@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/rand"
+	"net"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 )
 
@@ -40,11 +40,11 @@ func DigestACL(perms int32, user, password string) []ACL {
 func FormatServers(servers []string) []string {
 	srvs := make([]string, len(servers))
 	for i, addr := range servers {
-		if strings.Contains(addr, ":") {
+		if _, _, err := net.SplitHostPort(addr); err == nil {
 			srvs[i] = addr
-		} else {
-			srvs[i] = addr + ":" + strconv.Itoa(DefaultPort)
+			continue
 		}
+		srvs[i] = net.JoinHostPort(addr, strconv.Itoa(DefaultPort))
 	}
 	return srvs
 }

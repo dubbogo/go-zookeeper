@@ -39,7 +39,11 @@ build:
 
 .PHONY: unittest
 unittest:
-	go test -timeout 500s -v -race -covermode atomic -skip=Integration ./...
+	go test -timeout 500s -v -race -covermode atomic -short $(PACKAGES)
+
+.PHONY: integration
+integration: build zookeeper
+	go test -timeout 1000s -v -race -covermode atomic -run '[Ii]ntegration' $(PACKAGES)
 
 .PHONY: test
 test: build zookeeper

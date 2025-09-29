@@ -1389,7 +1389,7 @@ func (c *Conn) Reconfig(members []string, version int64) (*Stat, error) {
 }
 
 func (c *Conn) internalReconfig(request *reconfigRequest) (*Stat, error) {
-	response := &reconfigReponse{}
+	response := &reconfigResponse{}
 	_, err := c.request(opReconfig, request, response, nil)
 	return &response.Stat, err
 }

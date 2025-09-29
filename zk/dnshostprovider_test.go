@@ -163,7 +163,9 @@ func TestIntegration_DNSHostProviderReconnect(t *testing.T) {
 
 	// Restart the connected server.
 	ts.Servers[serverIndex].Srv.Stop()
-	ts.Servers[serverIndex].Srv.Start()
+	if err := ts.Servers[serverIndex].Srv.Start(); err != nil {
+		t.Fatalf("failed to restart server %d: %v", serverIndex, err)
+	}
 
 	// Continue with the basic TestCreate tests.
 	if p, err := zk.Create(path, []byte{1, 2, 3, 4}, 0, WorldACL(PermAll)); err != nil {

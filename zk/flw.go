@@ -139,7 +139,7 @@ func FLWRuok(servers []string, timeout time.Duration) []bool {
 			continue
 		}
 
-		if string(response[:4]) == "imok" {
+		if bytes.HasPrefix(bytes.TrimSpace(response), []byte("imok")) {
 			oks[i] = true
 		}
 	}
