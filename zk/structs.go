@@ -6,6 +6,7 @@ import (
 	"log"
 	"reflect"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -73,11 +74,12 @@ type ServerClients struct {
 
 // ServerStats is the information pulled from the Zookeeper `stat` command.
 type ServerStats struct {
+	Server      string
 	Sent        int64
 	Received    int64
 	NodeCount   int64
 	MinLatency  int64
-	AvgLatency  int64
+	AvgLatency  float64
 	MaxLatency  int64
 	Connections int64
 	Outstanding int64
@@ -162,6 +164,14 @@ type CreateRequest struct {
 	Data  []byte
 	Acl   []ACL
 	Flags int32
+}
+
+type CreateTTLRequest struct {
+	Path  string
+	Data  []byte
+	Acl   []ACL
+	Flags int32
+	Ttl   int64 // ms
 }
 
 type createResponse pathResponse
@@ -276,6 +286,18 @@ type multiResponse struct {
 	Ops        []multiResponseOp
 	DoneHeader multiHeader
 }
+
+// zk version 3.5 reconfig API
+type reconfigRequest struct {
+	JoiningServers []byte
+	LeavingServers []byte
+	NewMembers     []byte
+	// curConfigId version of the current configuration
+	// optional - causes reconfiguration to return an error if configuration is no longer current
+	CurConfigId int64
+}
+
+type reconfigResponse getDataResponse
 
 func (r *multiRequest) Encode(buf []byte) (int, error) {
 	total := 0
@@ -392,7 +414,7 @@ type encoder interface {
 func decodePacket(buf []byte, st interface{}) (n int, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			if e, ok := r.(runtime.Error); ok && e.Error() == "runtime error: slice bounds out of range" {
+			if e, ok := r.(runtime.Error); ok && strings.HasPrefix(e.Error(), "runtime error: slice bounds out of range") {
 				err = ErrShortBuffer
 			} else {
 				panic(r)
@@ -483,7 +505,7 @@ func decodePacketValue(buf []byte, v reflect.Value) (int, error) {
 func encodePacket(buf []byte, st interface{}) (n int, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			if e, ok := r.(runtime.Error); ok && e.Error() == "runtime error: slice bounds out of range" {
+			if e, ok := r.(runtime.Error); ok && strings.HasPrefix(e.Error(), "runtime error: slice bounds out of range") {
 				err = ErrShortBuffer
 			} else {
 				panic(r)
@@ -574,8 +596,10 @@ func requestStructForOp(op int32) interface{} {
 	switch op {
 	case opClose:
 		return &closeRequest{}
-	case opCreate:
+	case opCreate, opCreateContainer:
 		return &CreateRequest{}
+	case opCreateTTL:
+		return &CreateTTLRequest{}
 	case opDelete:
 		return &DeleteRequest{}
 	case opExists:
@@ -604,6 +628,8 @@ func requestStructForOp(op int32) interface{} {
 		return &CheckVersionRequest{}
 	case opMulti:
 		return &multiRequest{}
+	case opReconfig:
+		return &reconfigRequest{}
 	}
 	return nil
 }

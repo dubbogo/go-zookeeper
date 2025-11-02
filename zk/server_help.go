@@ -3,132 +3,121 @@ package zk
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
+const (
+	_testConfigName   = "zoo.cfg"
+	_testMyIDFileName = "myid"
+)
 
 type TestServer struct {
-	Port int
-	Path string
-	Srv  *Server
+	Port   int
+	Path   string
+	Srv    *server
+	Config ServerConfigServer
 }
 
 type TestCluster struct {
 	Path    string
+	Config  ServerConfig
 	Servers []TestServer
 }
 
-type options struct {
-	retryTimes int
-}
+// TODO: pull this into its own package to allow for better isolation of integration tests vs. unit
+// testing. This should be used on CI systems and local only when needed whereas unit tests should remain
+// fast and not rely on external dependencies.
+func StartTestCluster(t *testing.T, size int, stdout, stderr io.Writer) (*TestCluster, error) {
+	t.Helper()
 
-
-type option func(*options)
-
-// WithRetryTimes set retry times when StartTestCluster
-func WithRetryTimes(t int) option {
-	return func(opt *options) {
-		opt.retryTimes = t
+	if testing.Short() {
+		t.Skip("ZK cluster tests skipped in short case.")
 	}
-}
 
-//StartTestCluster start zk cluster
-func StartTestCluster(size int, stdout, stderr io.Writer, opts ...option) (*TestCluster, error) {
-	tmpPath, err := ioutil.TempDir("", "gozk")
-	if err != nil {
-		return nil, err
+	if testing.Verbose() {
+		// if testing verbose we just spam the server logs as many issues with tests will have the ZK server
+		// logs have the cause of the failure in it.
+		if stdout == nil {
+			stdout = os.Stderr
+		} else {
+			stdout = io.MultiWriter(stdout, os.Stderr)
+		}
 	}
+
+	tmpPath := t.TempDir()
+
 	success := false
 	startPort := int(rand.Int31n(6000) + 10000)
 	cluster := &TestCluster{Path: tmpPath}
+
 	defer func() {
 		if !success {
 			cluster.Stop()
 		}
 	}()
-	options := &options{retryTimes: 10}
-	for _, opt := range opts {
-		opt(options)
-	}
-	for serverN := 0; serverN < size; serverN++ {
-		srvPath := filepath.Join(tmpPath, fmt.Sprintf("srv%d", serverN))
-		if err := os.Mkdir(srvPath, 0700); err != nil {
-			return nil, err
-		}
-		port := startPort + serverN*3
 
-		// Convert windows style path to posix style path
-		// to avoid that java zookeeper server omits the
-		// backslash in dataDir when loading cfg.
-		// For example, java zookeeper server will transfer
-		//     C:\Users\AppData\Local\Temp
-		// to
-		//     C:UsersAppDataLocalTemp
-		// So we should use
-		//     C:/Users/AppData/Local/Temp
-		// to avoid this.
-		dataDir := filepath.ToSlash(srvPath)
+	for serverN := 0; serverN < size; serverN++ {
+		srvPath := filepath.Join(tmpPath, fmt.Sprintf("srv%d", serverN+1))
+		requireNoErrorf(t, os.Mkdir(srvPath, 0700), "failed to make server path")
+
+		port := startPort + serverN*3
 		cfg := ServerConfig{
 			ClientPort: port,
-			DataDir:    dataDir,
+			DataDir:    srvPath,
 		}
 
 		for i := 0; i < size; i++ {
-			cfg.Servers = append(cfg.Servers, ServerConfigServer{
+			serverNConfig := ServerConfigServer{
 				ID:                 i + 1,
 				Host:               "127.0.0.1",
 				PeerPort:           startPort + i*3 + 1,
 				LeaderElectionPort: startPort + i*3 + 2,
-			})
-		}
-		cfgPath := filepath.Join(srvPath, "zoo.cfg")
-		fi, err := os.Create(cfgPath)
-		if err != nil {
-			return nil, err
-		}
-		err = cfg.Marshall(fi)
-		fi.Close()
-		if err != nil {
-			return nil, err
+			}
+
+			cfg.Servers = append(cfg.Servers, serverNConfig)
 		}
 
-		fi, err = os.Create(filepath.Join(srvPath, "myid"))
-		if err != nil {
-			return nil, err
-		}
+		cfgPath := filepath.Join(srvPath, _testConfigName)
+		fi, err := os.Create(cfgPath)
+		requireNoErrorf(t, err)
+
+		requireNoErrorf(t, cfg.Marshall(fi))
+		fi.Close()
+
+		fi, err = os.Create(filepath.Join(srvPath, _testMyIDFileName))
+		requireNoErrorf(t, err)
+
 		_, err = fmt.Fprintf(fi, "%d\n", serverN+1)
 		fi.Close()
-		if err != nil {
-			return nil, err
-		}
+		requireNoErrorf(t, err)
 
-		srv := &Server{
-			ConfigPath: cfgPath,
-			Stdout:     stdout,
-			Stderr:     stderr,
-		}
+		srv, err := NewIntegrationTestServer(t, cfgPath, stdout, stderr)
+		requireNoErrorf(t, err)
+
 		if err := srv.Start(); err != nil {
 			return nil, err
 		}
+
 		cluster.Servers = append(cluster.Servers, TestServer{
-			Path: srvPath,
-			Port: cfg.ClientPort,
-			Srv:  srv,
+			Path:   srvPath,
+			Port:   cfg.ClientPort,
+			Srv:    srv,
+			Config: cfg.Servers[serverN],
 		})
+		cluster.Config = cfg
 	}
 
-	if err := cluster.waitForStart(options.retryTimes, time.Second); err != nil {
+	if err := cluster.waitForStart(30, time.Second); err != nil {
 		return nil, err
 	}
+
 	success = true
+
 	return cluster, nil
 }
 
@@ -158,7 +147,7 @@ func (tc *TestCluster) Stop() error {
 	for _, srv := range tc.Servers {
 		srv.Srv.Stop()
 	}
-	defer os.RemoveAll(tc.Path)
+
 	return tc.waitForStop(5, time.Second)
 }
 
@@ -177,6 +166,7 @@ func (tc *TestCluster) waitForStart(maxRetry int, interval time.Duration) error 
 		}
 		time.Sleep(interval)
 	}
+
 	return fmt.Errorf("unable to verify health of servers")
 }
 
@@ -213,7 +203,7 @@ func (tc *TestCluster) StartServer(server string) {
 			return
 		}
 	}
-	panic(fmt.Sprintf("Unknown server: %s", server))
+	panic(fmt.Sprintf("unknown server: %s", server))
 }
 
 func (tc *TestCluster) StopServer(server string) {
@@ -223,27 +213,46 @@ func (tc *TestCluster) StopServer(server string) {
 			return
 		}
 	}
-	panic(fmt.Sprintf("Unknown server: %s", server))
+	panic(fmt.Sprintf("unknown server: %s", server))
 }
 
 func (tc *TestCluster) StartAllServers() error {
 	for _, s := range tc.Servers {
 		if err := s.Srv.Start(); err != nil {
-			return fmt.Errorf(
-				"Failed to start server listening on port `%d` : %+v", s.Port, err)
+			return fmt.Errorf("failed to start server listening on port `%d` : %+v", s.Port, err)
 		}
+	}
+
+	if err := tc.waitForStart(10, time.Second*2); err != nil {
+		return fmt.Errorf("failed to wait to startup zk servers: %v", err)
 	}
 
 	return nil
 }
 
 func (tc *TestCluster) StopAllServers() error {
+	var err error
 	for _, s := range tc.Servers {
 		if err := s.Srv.Stop(); err != nil {
-			return fmt.Errorf(
-				"Failed to stop server listening on port `%d` : %+v", s.Port, err)
+			err = fmt.Errorf("failed to stop server listening on port `%d` : %v", s.Port, err)
 		}
+	}
+	if err != nil {
+		return err
+	}
+
+	if err := tc.waitForStop(5, time.Second); err != nil {
+		return fmt.Errorf("failed to wait to startup zk servers: %v", err)
 	}
 
 	return nil
+}
+
+func requireNoErrorf(t *testing.T, err error, msgAndArgs ...interface{}) {
+	t.Helper()
+
+	if err != nil {
+		t.Logf("received unexpected error: %v", err)
+		t.Fatal(msgAndArgs...)
+	}
 }

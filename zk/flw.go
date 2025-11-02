@@ -24,7 +24,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 	// different parts of the regular expression that are required to parse the srvr output
 	const (
 		zrVer   = `^Zookeeper version: ([A-Za-z0-9\.\-]+), built on (\d\d/\d\d/\d\d\d\d \d\d:\d\d [A-Za-z0-9:\+\-]+)`
-		zrLat   = `^Latency min/avg/max: (\d+)/(\d+)/(\d+)`
+		zrLat   = `^Latency min/avg/max: (\d+)/([0-9.]+)/(\d+)`
 		zrNet   = `^Received: (\d+).*\n^Sent: (\d+).*\n^Connections: (\d+).*\n^Outstanding: (\d+)`
 		zrState = `^Zxid: (0x[A-Za-z0-9]+).*\n^Mode: (\w+).*\n^Node count: (\d+)`
 	)
@@ -43,7 +43,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 		response, err := fourLetterWord(servers[i], "srvr", timeout)
 
 		if err != nil {
-			ss[i] = &ServerStats{Error: err}
+			ss[i] = &ServerStats{Server: servers[i], Error: err}
 			imOk = false
 			continue
 		}
@@ -52,7 +52,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 
 		if matches == nil {
 			err := fmt.Errorf("unable to parse fields from zookeeper response (no regex matches)")
-			ss[i] = &ServerStats{Error: err}
+			ss[i] = &ServerStats{Server: servers[i], Error: err}
 			imOk = false
 			continue
 		}
@@ -75,7 +75,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 		buildTime, err := time.Parse("01/02/2006 15:04 MST", match[1])
 
 		if err != nil {
-			ss[i] = &ServerStats{Error: err}
+			ss[i] = &ServerStats{Server: servers[i], Error: err}
 			imOk = false
 			continue
 		}
@@ -83,7 +83,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 		parsedInt, err := strconv.ParseInt(match[9], 0, 64)
 
 		if err != nil {
-			ss[i] = &ServerStats{Error: err}
+			ss[i] = &ServerStats{Server: servers[i], Error: err}
 			imOk = false
 			continue
 		}
@@ -97,7 +97,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 		// within the regex above, these values must be numerical
 		// so we can avoid useless checking of the error return value
 		minLatency, _ := strconv.ParseInt(match[2], 0, 64)
-		avgLatency, _ := strconv.ParseInt(match[3], 0, 64)
+		avgLatency, _ := strconv.ParseFloat(match[3], 64)
 		maxLatency, _ := strconv.ParseInt(match[4], 0, 64)
 		recv, _ := strconv.ParseInt(match[5], 0, 64)
 		sent, _ := strconv.ParseInt(match[6], 0, 64)
@@ -106,6 +106,7 @@ func FLWSrvr(servers []string, timeout time.Duration) ([]*ServerStats, bool) {
 		ncnt, _ := strconv.ParseInt(match[11], 0, 64)
 
 		ss[i] = &ServerStats{
+			Server:      servers[i],
 			Sent:        sent,
 			Received:    recv,
 			NodeCount:   ncnt,
@@ -138,7 +139,7 @@ func FLWRuok(servers []string, timeout time.Duration) []bool {
 			continue
 		}
 
-		if bytes.Equal(response[:4], []byte("imok")) {
+		if bytes.HasPrefix(bytes.TrimSpace(response), []byte("imok")) {
 			oks[i] = true
 		}
 	}

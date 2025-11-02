@@ -16,8 +16,8 @@ func (lw logWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func TestBasicCluster(t *testing.T) {
-	ts, err := StartTestCluster(3, nil, logWriter{t: t, p: "[ZKERR] "})
+func TestIntegration_BasicCluster(t *testing.T) {
+	ts, err := StartTestCluster(t, 3, nil, logWriter{t: t, p: "[ZKERR] "})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,6 +38,11 @@ func TestBasicCluster(t *testing.T) {
 	if _, err := zk1.Create("/gozk-test", []byte("foo-cluster"), 0, WorldACL(PermAll)); err != nil {
 		t.Fatalf("Create failed on node 1: %+v", err)
 	}
+
+	if _, err := zk2.Sync("/gozk-test"); err != nil {
+		t.Fatalf("Sync failed on node 2: %+v", err)
+	}
+
 	if by, _, err := zk2.Get("/gozk-test"); err != nil {
 		t.Fatalf("Get failed on node 2: %+v", err)
 	} else if string(by) != "foo-cluster" {
@@ -46,8 +51,8 @@ func TestBasicCluster(t *testing.T) {
 }
 
 // If the current leader dies, then the session is reestablished with the new one.
-func TestClientClusterFailover(t *testing.T) {
-	tc, err := StartTestCluster(3, nil, logWriter{t: t, p: "[ZKERR] "})
+func TestIntegration_ClientClusterFailover(t *testing.T) {
+	tc, err := StartTestCluster(t, 3, nil, logWriter{t: t, p: "[ZKERR] "})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,8 +93,8 @@ func TestClientClusterFailover(t *testing.T) {
 
 // If a ZooKeeper cluster looses quorum then a session is reconnected as soon
 // as the quorum is restored.
-func TestNoQuorum(t *testing.T) {
-	tc, err := StartTestCluster(3, nil, logWriter{t: t, p: "[ZKERR] "})
+func TestIntegration_NoQuorum(t *testing.T) {
+	tc, err := StartTestCluster(t, 3, nil, logWriter{t: t, p: "[ZKERR] "})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,8 +189,8 @@ func TestNoQuorum(t *testing.T) {
 	}
 }
 
-func TestWaitForClose(t *testing.T) {
-	ts, err := StartTestCluster(1, nil, logWriter{t: t, p: "[ZKERR] "})
+func TestIntegration_WaitForClose(t *testing.T) {
+	ts, err := StartTestCluster(t, 1, nil, logWriter{t: t, p: "[ZKERR] "})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,8 +225,8 @@ CONNECTED:
 	}
 }
 
-func TestBadSession(t *testing.T) {
-	ts, err := StartTestCluster(1, nil, logWriter{t: t, p: "[ZKERR] "})
+func TestIntegration_BadSession(t *testing.T) {
+	ts, err := StartTestCluster(t, 1, nil, logWriter{t: t, p: "[ZKERR] "})
 	if err != nil {
 		t.Fatal(err)
 	}
