@@ -18,5 +18,9 @@ classes
 
 # vim
 *.swp
-
+.vscode/
 .DS_Store
+profile.cov
+zookeeper
+zookeeper-*/
+zookeeper-*.tar.gz

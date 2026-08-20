@@ -1,25 +1,40 @@
+arch:
+  - amd64
+  - ppc64le
 language: go
 
 go:
   - "1.11"
   - "1.12"
   - "1.13.x"
+  - "1.x"
+  - tip
 
-env:
-  - GO111MODULE=on
+go_import_path: github.com/dubbogo/go-zookeeper
 
 branches:
   only:
     - master
 
 before_install:
-  - wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
-  - tar -zxvf zookeeper*tar.gz
+  - make setup ZK_VERSION=${zk_version}
 
-install:
-  - go get -t ./...
+before_script:
+  - make lint
 
 script:
-  - go build ./...
-  - go vet ./...
-  - go test -v -race ./...
+  - jdk_switcher use oraclejdk9 || true
+  - make
+
+matrix:
+  allow_failures:
+    - go: tip
+  fast_finish: true
+
+env:
+  global:
+    - GO111MODULE=on
+    - secure: Coha3DDcXmsekrHCZlKvRAc+pMBaQU1QS/3++3YCCUXVDBWgVsC1ZIc9df4RLdZ/ncGd86eoRq/S+zyn1XbnqK5+ePqwJoUnJ59BE8ZyHLWI9ajVn3fND1MTduu/ksGsS79+IYbdVI5wgjSgjD3Ktp6Y5uPl+BPosjYBGdNcHS4=
+  matrix:
+    - zk_version=3.5.4-beta
+    - zk_version=3.4.12
