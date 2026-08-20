@@ -22,12 +22,12 @@ func TestIntegration_BasicCluster(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ts.Stop()
-	zk1, err := ts.Connect(0)
+	zk1, _, err := ts.Connect(0)
 	if err != nil {
 		t.Fatalf("Connect returned error: %+v", err)
 	}
 	defer zk1.Close()
-	zk2, err := ts.Connect(1)
+	zk2, _, err := ts.Connect(1)
 	if err != nil {
 		t.Fatalf("Connect returned error: %+v", err)
 	}
@@ -154,7 +154,7 @@ func TestIntegration_NoQuorum(t *testing.T) {
 	DefaultLogger.Printf("    Retrying no luck...")
 	var firstDisconnect *Event
 	begin := time.Now()
-	for time.Now().Sub(begin) < 6*time.Second {
+	for time.Since(begin) < 6*time.Second {
 		disconnectedEvent := sl.NewWatcher(sessionStateMatcher(StateDisconnected)).Wait(4 * time.Second)
 		if disconnectedEvent == nil {
 			t.Fatalf("Disconnected event expected")
@@ -195,7 +195,7 @@ func TestIntegration_WaitForClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ts.Stop()
-	zk, err := ts.Connect(0)
+	zk, _, err := ts.Connect(0)
 	if err != nil {
 		t.Fatalf("Connect returned error: %+v", err)
 	}

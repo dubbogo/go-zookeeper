@@ -16,6 +16,10 @@ const (
 	_testMyIDFileName = "myid"
 )
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 type TestServer struct {
 	Port   int
 	Path   string
@@ -121,9 +125,8 @@ func StartTestCluster(t *testing.T, size int, stdout, stderr io.Writer) (*TestCl
 	return cluster, nil
 }
 
-func (tc *TestCluster) Connect(idx int) (*Conn, error) {
-	zk, _, err := Connect([]string{fmt.Sprintf("127.0.0.1:%d", tc.Servers[idx].Port)}, time.Second*15)
-	return zk, err
+func (tc *TestCluster) Connect(idx int) (*Conn, <-chan Event, error) {
+	return Connect([]string{fmt.Sprintf("127.0.0.1:%d", tc.Servers[idx].Port)}, time.Second*15)
 }
 
 func (tc *TestCluster) ConnectAll() (*Conn, <-chan Event, error) {
@@ -248,9 +251,13 @@ func (tc *TestCluster) StopAllServers() error {
 	return nil
 }
 
+func requireNoError(t *testing.T, err error, msgAndArgs ...interface{}) {
+	t.Helper()
+	requireNoErrorf(t, err, msgAndArgs...)
+}
+
 func requireNoErrorf(t *testing.T, err error, msgAndArgs ...interface{}) {
 	t.Helper()
-
 	if err != nil {
 		t.Logf("received unexpected error: %v", err)
 		t.Fatal(msgAndArgs...)
