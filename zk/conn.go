@@ -648,7 +648,7 @@ func (c *Conn) invalidateWatches(err error) {
 	}
 }
 func (c *Conn) invalidateWatcher(w *Watcher, err error) {
-	ev := Event{Type: EventNotWatching, State: c.state, Path: w.Wpt.Path, Err: err}
+	ev := Event{Type: EventNotWatching, State: c.State(), Path: w.Wpt.Path, Err: err}
 	select {
 	case w.EvtCh <- ev:
 		close(w.EvtCh)
